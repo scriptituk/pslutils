@@ -1,0 +1,72 @@
+% PostScript Math Procedures
+% by scriptit.co.uk
+
+% constants
+/PI 3.141592654 def
+/E 2.718281828 def % Euler's number
+
+% sign function
+/sign {
+	dup 0 ne { 0 lt { -1 }{ +1 } ifelse }{ cvi } ifelse % integer
+} bind def
+
+% absolute maximum value
+/absmax {
+	2 copy abs exch abs gt { exch } if pop
+} bind def
+
+% absolute minimum value
+/absmin {
+	2 copy abs exch abs lt { exch } if pop
+} bind def
+
+% 32 bit integer addition
+/iadd32 {
+	2 copy or 16#C0000000 and 0 eq {
+		add
+	}{
+		2 copy
+		-2 bitshift 16#3FFFFFFF and exch -2 bitshift 16#3FFFFFFF and add
+		3 1 roll
+		3 and exch 3 and add
+		exch
+		1 index 3 gt { 1 add } if
+		2 bitshift exch 3 and or
+	} ifelse
+} bind def
+
+% 32 bit integer subtraction
+/isub32 {
+	not 1 iadd32 iadd32
+} bind def
+
+% radians to degrees
+% <radians> degrees <degrees>
+/degrees {
+	180 PI div mul
+} bind def
+
+% degrees to radians
+% <degrees> radians <radians>
+/radians {
+	PI 180 div mul
+} bind def
+
+% root of difference of two squares
+% <x> <y> rtdiffsq <d>
+/rtdiffsq {
+	dup mul exch dup mul sub abs sqrt
+} bind def
+
+% missing arc-cosine proc
+% <adjacent> <hypotenuse> acos <angle>
+/acos {
+	1 index rtdiffsq exch atan
+} bind def
+
+% missing arc-sine proc
+% <opposite> <hypotenuse> asin <angle>
+/asin {
+	1 index rtdiffsq atan
+} bind def
+

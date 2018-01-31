@@ -1,0 +1,50 @@
+% PostScript File Procedures
+% by scriptit.co.uk
+
+% get path dirname
+% <path> dirname <string>
+/dirname {
+	dup { (/) search { pop pop }{ exit } ifelse } loop
+	length 1 index length exch sub 0 exch getinterval
+	dup length 0 eq { pop (.) } if
+} bind def
+
+% get path basename minus suffix
+% <path> <suffix> basename <string>
+/basename {
+	exch { (/) search { pop pop }{ exit } ifelse } loop
+	dup 3 -1 roll
+	search { 3 1 roll pop length 0 eq { exch } if } if pop
+} bind def
+
+% primitive directory test
+% <path> isdir <bool>
+/isdir {
+	dup status { % exists
+		pop pop pop pop
+		(.) basename length 0 eq % test for no last path component
+	}{
+		pop false
+	} ifelse
+} bind def
+
+% primitive file test
+% <path> isfile <bool>
+/isfile {
+	dup status { % exists
+		pop pop pop pop
+		(.) basename length 0 ne % test for a last path component
+	}{
+		pop false
+	} ifelse
+} bind def
+
+% execute external postscript file
+% for gs searches same directory as currentfile
+% silently ignored if file not found
+% <filename> include -
+/include {
+	is_gs { currentfile .filename { dirname (/) cat exch cat } if } if
+	dup isfile { run }{ pop } ifelse
+} bind def
+

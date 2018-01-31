@@ -1,0 +1,358 @@
+% PostScript String Procedures
+% by scriptit.co.uk
+
+% get string value of integer
+/chr {
+	16#FF and 1 string exch 1 index exch 0 exch put
+} bind def
+
+% get integer value of character
+/ord {
+	0 get
+} bind def
+
+% convert any to string
+/cvas {
+	dup type /stringtype ne { dup type /nametype eq { dup length }{ 20 } ifelse string cvs } if
+} bind def
+
+% concatenate two strings
+% <str1> <str2> cat <str1str2>
+/cat {
+	exch
+	dup length 2 index length add string
+	dup dup 5 2 roll
+	copy length exch putinterval
+} bind def
+
+% concatenate two objects
+% <any> <any> concat2 <string>
+/concat2 {
+	cvas exch cvas exch cat
+} bind def
+
+% concatenate array of objects with separator
+% <[any]> <separator> concatas <string>
+/concatas {
+	exch [ exch { cvas } forall ] exch % any to string
+	2 copy length exch length 1 sub mul % separator space
+	2 index { length add } forall % strings space
+	string % result
+	dup /NullEncode filter % write as a file
+	3 -1 roll
+	()
+	5 -1 roll
+	{
+		3 index 2 index writestring
+		3 index exch writestring
+		pop dup
+	} forall
+	pop pop
+	closefile
+} bind def
+
+% concatenate array of objects
+% <[any]> concata <string>
+/concata {
+	() concatas
+} bind def
+
+% convert to lower case (ASCII only)
+% <string> tolower <string>
+/tolower {
+	dup length string copy
+	0 1 2 index length 1 sub {
+		2 copy get
+		dup dup 65 ge exch 90 le and { 32 add 3 copy put } if pop
+		pop
+	} for
+} bind def
+
+% convert to upper case (ASCII only)
+% <string> toupper <string>
+/toupper {
+	dup length string copy
+	0 1 2 index length 1 sub {
+		2 copy get
+		dup dup 97 ge exch 122 le and { 32 sub 3 copy put } if pop
+		pop
+	} for
+} bind def
+
+% split string by given substring
+% <string> <seek> split <array>
+/split {
+	[ 3 1 roll { search { 3 1 roll }{ exit } ifelse } loop ]
+} bind def
+
+% read inline heredoc up to marker string e.g. (%EOD)
+% <EODString> heredoc <string>
+/heredoc {
+	currentfile exch 0 exch /SubFileDecode filter 65535 string readstring pop
+} bind def
+
+% encode dictionary or array as a JSON data-interchange string (simple implementation)
+% <dict|array> jsonencode <string>
+/jsonencode {
+	/jsonstr {
+		[ exch (") exch
+		dup type /stringtype eq {
+			{
+				chr {
+					dup (") eq { pop (\\") exit } if
+					dup (\\) eq { pop (\\\\) exit } if
+					dup (/) eq { pop (\\/) exit } if
+					dup (\b) eq { pop (\\b) exit } if
+					dup (\f) eq { pop (\\f) exit } if
+					dup (\n) eq { pop (\\n) exit } if
+					dup (\r) eq { pop (\\r) exit } if
+					dup (\t) eq { pop (\\t) exit } if
+					exit
+				} loop
+			} forall
+		} if
+		(") ] concata
+	} bind def
+	[ exch
+	dup type { % case stmt
+		dup /dicttype eq {
+			pop
+			({) exch {
+				2 index ({) ne { (,) 3 1 roll } if
+				exch jsonstr (:) cat exch jsonencode
+			} forall
+			(})
+			exit
+		} if
+		dup /arraytype eq {
+			pop
+			([) exch {
+				1 index ([) ne { (,) exch } if
+				jsonencode
+			} forall
+			(])
+			exit
+		} if
+		dup /stringtype eq { pop jsonstr exit } if
+		dup /nametype eq { pop jsonstr exit } if
+		dup /integertype eq { pop cvas exit } if
+		dup /realtype eq { pop cvas exit } if
+		dup /booleantype eq { pop cvas exit } if
+		dup /nulltype eq { pop pop (null) exit } if
+		pop
+	} loop
+	] concata
+} bind def
+
+% crunch postscript code string
+% <ps> crunchps <string>
+/crunchps {
+	dup length string copy
+	0 % index
+	false % insert space
+	false % in comment
+	3 index {
+		{ % case stmt
+			dup 10 eq { pop pop pop true false exit } if % newline
+			1 index { pop exit } if % in comment
+			dup 37 eq { pop pop true exit } if % percent
+			dup 32 le { pop pop pop true false exit } if % whitespace
+			exch pop exch 2 index 0 ne and { % space?
+				2 index 2 index 1 sub get % last saved char
+				dup 123 ne exch dup 91 ne exch 60 ne and and % last != { or [ or <
+				1 index % this char
+				dup 125 ne exch dup 93 ne exch 62 ne and and % this != } or ] or >
+				and { 2 index 2 index 32 put exch 1 add exch } if % save space
+			} if
+			3 copy put pop % save
+			1 add false false
+			exit
+		} loop
+	} forall
+	pop pop
+	0 exch getinterval
+} bind def
+
+% fold lines to 80 characters max without word breaks
+% <string> fold80 <string>
+/fold80 {
+	0
+	{
+		80 add
+		2 copy exch length ge { exit } if
+		{
+			2 copy get 32 eq {
+				2 copy 10 put exit % space -> newline
+			}{
+				1 sub
+			} ifelse
+		} loop
+	} loop
+	pop
+} bind def
+
+% convert int to octal escape string
+% <int> octal8 <string>
+/octal8 {
+	16#FF and
+	4 string (\\00) 1 index copy pop
+	dup 3 -1 roll
+	8 3 string cvrs
+	dup length neg 3 and
+	exch putinterval
+} bind def
+
+% convert int to two octal escape string
+% <int> octal16 <string>
+/octal16 {
+	dup -8 bitshift octal8 exch octal8 cat
+} bind def
+
+% convert UTF-8 to UTF-16BE
+% assumes valid UTF-8
+% see http://tidy.sourceforge.net/cgi-bin/lxr/source/src/utf8.c
+% and https://en.wikipedia.org/wiki/UTF-8#Codepage_layout
+% surrogate pairs result for code points > 16#FFFF (Supplementary Characters) - should map to .notdef
+% <utf8 string> utf8toutf16be <utf16 string>
+/utf8toutf16be {
+	dup length array exch 0 exch
+	0 % utf8 index
+	{
+		2 copy exch length ge { exit } if
+		2 copy get
+		dup 16#BF le {
+			16#7F and 1
+		}{
+			dup 16#DF le {
+				16#1F and 2
+			}{
+				dup 16#EF le {
+					16#0F and 3
+				}{
+					16#07 and 4
+				} ifelse
+			} ifelse
+		} ifelse
+		exch
+		1 1 3 index 1 sub {
+			3 index add 4 index exch get 16#3F and
+			exch 6 bitshift or
+		} for
+		1 index 4 eq { % supplementary characters
+			16#10000 sub
+			dup -10 bitshift 16#3FF and 16#D800 or % high surrogate
+			6 index 6 index 3 -1 roll put
+			5 -1 roll 1 add 5 1 roll
+			16#3FF and 16#DC00 or % low surrogate
+		} if
+		5 index 5 index 3 -1 roll put
+		4 -1 roll 1 add 4 1 roll
+		add
+	} loop
+	pop pop
+	0 exch getinterval
+	dup length dup add string exch
+	0 exch {
+		3 copy -8 bitshift put
+		16#FF and 2 index exch 2 index 1 add exch put
+		2 add
+	} forall
+	pop
+} bind def
+
+% convert UCS-2 to UTF-8
+% see http://tidy.sourceforge.net/cgi-bin/lxr/source/src/utf8.c
+% <ucs2 string> ucs2toutf8 <utf8 string>
+/ucs2toutf8 {
+	dup length dup add array exch 0 exch
+	0 % ucs2 index
+	{
+		2 copy exch length ge { exit } if
+		2 copy 2 copy 1 add get 3 1 roll get 8 bitshift or
+		[ exch
+			dup 16#7F gt {
+				dup 16#7FF le {
+					dup -6 bitshift 16#C0 or
+					exch 16#3F and 16#80 or
+				}{
+					dup -12 bitshift 16#E0 or
+					exch dup -6 bitshift 16#3F and  16#80 or
+					exch 16#3F and 16#80 or
+				} ifelse
+			} if
+		]
+		4 -1 roll exch
+		4 index 2 index 2 index putinterval
+		length add 3 1 roll
+		2 add
+	} loop
+	pop pop
+	0 exch getinterval
+	dup length string exch
+	0 exch {
+		3 copy put pop
+		1 add
+	} forall
+	pop
+} bind def
+
+% convert UTF16BE string to array of 2 byte char strings
+% <string> utf16chars <array>
+/utf16chars {
+	dup length 2 idiv array % UTF16BE char strings
+	exch 0 % index
+	exch {
+		2 index 2 index get dup null eq {
+			pop
+			2 index 2 index 2 string dup 0 6 -1 roll put put
+		}{
+			exch 1 exch put
+			1 add
+		} ifelse
+	} forall
+	pop
+} bind def
+
+% convert array of 2 byte char strings to UTF16BE string
+% <array> utf16string <string>
+/utf16string {
+	dup length dup add string % dest
+	exch 0 % index
+	exch {
+		3 copy putinterval pop
+		2 add
+	} forall
+	pop
+} bind def
+
+% convert UTF16 string to integer array
+% <string> str2int16 <array>
+/str2int16 {
+	dup length 2 idiv array
+	exch 0 % index
+	exch {
+		2 index 2 index get dup null eq {
+			pop
+			8 bitshift 3 copy put pop
+		}{
+			or 3 copy put pop
+			1 add
+		} ifelse
+	} forall
+	pop
+} bind def
+
+% convert integer array to UTF16 string
+% <string> utf16ints <array>
+/int2str16 {
+	dup length 2 mul string
+	exch 0 % index
+	exch {
+		3 copy -8 bitshift 16#FF and put
+		3 copy exch 1 add exch 16#FF and put
+		pop
+		2 add
+	} forall
+	pop
+} bind def
+

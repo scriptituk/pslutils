@@ -1,0 +1,65 @@
+% PostScript Statistics Procedures
+% by scriptit.co.uk
+
+% constants
+/MADK 1.4826 def % median absolute deviation consistency constant for normal distribution
+
+% calc mean
+% <sample> mean <mean>
+/mean {
+	0 % sum
+	0 1 3 index length 1 sub
+	{
+		2 index exch get add
+	} for % each value
+	exch length div % mean
+} bind def
+
+% calc median
+% <sorted sample> median <median>
+/median {
+	dup length 1 sub 2 div
+	dup floor cvi
+	exch ceiling cvi
+	2 copy eq {
+		pop get
+	}{
+		2 index exch get
+		3 1 roll get
+		add 2 div
+	} ifelse
+} bind def
+
+% calc median absolute deviation
+% <sample> <median> mad <mad>
+/mad {
+	1 index length array
+	0 1 4 index length 1 sub
+	{
+		dup 4 index exch get 3 index sub abs 2 index 3 1 roll put
+	} for % each value
+	3 1 roll pop pop
+	{} insertionsort % sort
+	median
+	MADK mul
+} bind def
+
+% calc standard deviation
+% <sample> <mean> sd <sd>
+/sd {
+	1 index length 1 sub
+	dup 0 ne
+	{
+		0 % sum
+		0 1 3 index
+		{
+			4 index exch get 3 index sub dup mul add
+		} for % each value
+		exch div sqrt % sd
+		exch pop exch pop
+	}{
+		pop pop pop
+		0
+	} ifelse
+} bind def
+

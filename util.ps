@@ -1,0 +1,118 @@
+% PostScript Utility Procedures
+% by scriptit.co.uk
+
+% test if running ghostscript interpreter
+% - is_gs <bool>
+/is_gs {
+	product (Ghostscript) search { pop pop pop true }{ pop false } ifelse
+} bind def
+
+% maximum / minimum value
+is_gs not {
+	/max { 2 copy lt { exch } if pop } bind def
+	/min { 2 copy gt { exch } if pop } bind def
+} if
+
+% mm to points
+/mm {
+	72 mul 25.4 div
+} bind def
+
+% points to mm
+/pt {
+	72 div 25.4 mul
+} bind def
+
+% current x point
+/x {
+	currentpoint pop
+} bind def
+
+% current y point
+/y {
+	currentpoint exch pop
+} bind def
+
+% 24-bit RGB to red green blue
+% <int> rgb <red> <green> <blue>
+/rgb {
+	dup dup
+	-16 bitshift 255 div
+	exch -8 bitshift 16#FF and 255 div
+	3 -1 roll 16#FF and 255 div
+} bind def
+
+% test if RGB is gray
+% <red> <green> <blue> is_gray <gray> true
+%						   or <red> <green> <blue> false
+/is_gray {
+	2 copy eq 3 index 3 index eq and
+	dup { 3 1 roll pop pop } if
+} bind def
+
+% extract width, height and bits from JPEG string
+% <JPEG string> jpegsize <width> <height> <bits>
+/jpegsize {
+	dup length
+	2
+	{
+		2 copy lt { 0 0 0 6 3 roll exit } if % EOF
+		2 index 1 index get
+		16#FF ne { 0 0 0 6 3 roll exit } if % error
+		1 add
+		2 index 1 index get
+		16#C0 eq { % SOF0 marker
+			3 add
+			2 index 1 index get % precision
+			4 1 roll % bits
+			1 add
+			2 index 1 index get 8 bitshift 3 index 2 index 1 add get or
+			4 1 roll % height
+			2 add
+			2 index 1 index get 8 bitshift 3 index 2 index 1 add get or
+			4 1 roll % width
+			exit
+		} if
+		1 add
+		2 index 1 index get 8 bitshift 3 index 2 index 1 add get or
+		add
+	} loop
+	pop pop pop
+	exch 3 -1 roll
+} bind def
+
+% set colour space and colour/pattern
+% <int or filename> colour -
+/colour {
+	dup type /integertype eq { % plain colour
+		rgb is_gray { setgray }{ setrgbcolor } ifelse
+	}{ % tiled image
+		(r) file 10000 string readstring pop % raw jpeg string
+		dup jpegsize
+		4 -1 roll /DCTDecode filter 10000 string readstring pop % decoded string
+		/id << % image dictionary
+			/ImageType 1 % opaque
+			/Width 8 index
+			/Height 9 index
+			/ImageMatrix [ 13 index 0 0 15 index neg 0 17 index ]
+			/DataSource 11 index % decoded image
+			/BitsPerComponent 14 index
+			/Decode [0 1 0 1 0 1] % as recommended
+		>> def
+		pop pop
+		/DeviceRGB setcolorspace
+		/pd << % pattern dictionary
+			/PatternType 1 % tiling
+			/PaintType 1 % coloured
+			/TilingType 3 % faster
+			/BBox [ 0 0 13 index 13 index ]
+			/XStep 1
+			/YStep 1
+			/PaintProc { begin gsave id image grestore end }
+		>> def
+		matrix scale
+		pd exch
+		makepattern setpattern
+	} ifelse
+} bind def
+
