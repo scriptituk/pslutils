@@ -15,12 +15,12 @@ is_gs not {
 
 % mm to points
 /mm {
-	72 mul 25.4 div
+	360 mul 127 div % x 72 / 25.4
 } bind def
 
 % points to mm
 /pt {
-	72 div 25.4 mul
+	127 div 360 mul % x 25.4 / 72
 } bind def
 
 % current x point
@@ -115,4 +115,3 @@ is_gs not {
 		makepattern setpattern
 	} ifelse
 } bind def
-
