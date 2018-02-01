@@ -98,7 +98,7 @@
 	{
 		dup 3 index exch get 1 get % left char right edge
 		exch 2 index exch get 0 get % right char left edge
-		1 index type (nulltype) ne 1 index type (nulltype) ne and
+		1 index type /nulltype ne 1 index type /nulltype ne and
 		{
 			4 index add % right + advance
 			2 copy 2 array astore % [L R] pair
@@ -174,7 +174,7 @@
 			} if
 			pop
 		} for % trace left side
-		dup 0 get type (nulltype) ne
+		dup 0 get type /nulltype ne
 		{
 			2 index (right) get -1 4 index (left) get
 			{
@@ -195,7 +195,7 @@
 	3 -1 roll
 	{
 		aload pop
-		pop type (nulltype) ne
+		pop type /nulltype ne
 		{
 			dup 2 index gt { exch pop dup } if
 			dup 3 index lt { 3 -1 roll pop exch }{ pop } ifelse
@@ -211,7 +211,7 @@
 	3 -1 roll
 	{
 		exch pop aload pop
-		dup type (nulltype) ne
+		dup type /nulltype ne
 		{
 			dup 3 index gt { 3 -1 roll pop exch }{ pop } ifelse
 			dup 3 index lt { 3 -1 roll pop exch }{ pop } ifelse
@@ -422,4 +422,3 @@
 	(lastchar) 2 index put
 	true charpath
 } bind def
-
