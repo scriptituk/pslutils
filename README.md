@@ -1,5 +1,5 @@
 # postscript-procs
-PostScript utility procedures
+PostScript Language Utilities
 
 PostScript (PS) is not dead! It is an ’underappreciated yet superb general purpose computing language‘ – [_PS guru Don  Lancaster_](https://www.tinaja.com/post01.shtml) – and great fun!
 
@@ -9,5 +9,5 @@ Besides that, the need to drive a device programmatically crops up occasionally 
 
 The available PS operators, i.e. 'functions', are quite limited compared with mainstream languages, therefore utility procedures are helpful. For example there is no proc to concatenate two strings! So this project offers general utilities for PS as a language rather than just as a PDL.
 
-The utility procedures here are organised in collections which should be obvious. For more procs see Don Lancaster’s [PostScript Secrets](https://www.tinaja.com/glib/pssecrets.pdf) and [Gonzo Utilities](https://www.tinaja.com/post01.shtml#gonzo).
+The utilities here are organised in collections which should be obvious. For more procs see Don Lancaster’s [PostScript Secrets](https://www.tinaja.com/glib/pssecrets.pdf) and [Gonzo Utilities](https://www.tinaja.com/post01.shtml#gonzo).
 
