@@ -38,13 +38,3 @@
 		pop false
 	} ifelse
 } bind def
-
-% execute external postscript file
-% for gs searches same directory as currentfile
-% silently ignored if file not found
-% <filename> include -
-/include {
-	is_gs { currentfile .filename { dirname (/) cat exch cat } if } if
-	dup isfile { run }{ pop } ifelse
-} bind def
-
