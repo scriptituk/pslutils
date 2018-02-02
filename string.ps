@@ -356,3 +356,20 @@
 	pop
 } bind def
 
+% translate string (char ints) to BMP PUA if symbol font
+% <char array> <mincid> symboloffset <cid array>
+/symboloffset {
+	16#F000 and dup 16#E000 ge { % offset is 16#E000 or 16#F000
+		exch
+		0 1 2 index length 1 sub {
+			2 copy get
+			dup dup 5 index lt exch 16#20 ge and { % < PUA, > ctrl codes
+				3 index add 2 index 3 1 roll put
+			}{
+				pop pop
+			} ifelse
+		} for
+		exch
+	} if
+	pop
+} bind def
