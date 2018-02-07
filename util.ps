@@ -36,6 +36,7 @@ is_gs not {
 % 24-bit RGB to red green blue
 % <int> rgb <red> <green> <blue>
 /rgb {
+	16#FFFFFF and
 	dup dup
 	-16 bitshift 255 div
 	exch -8 bitshift 16#FF and 255 div
@@ -50,9 +51,43 @@ is_gs not {
 	dup { 3 1 roll pop pop } if
 } bind def
 
-% extract width, height and bits from JPEG string
-% <JPEG string> jpegsize <width> <height> <bits>
-/jpegsize {
+% create chequered image data source
+% TODO: do it in PaintProc instead
+% <size> <colour1> <colour2> chequereddata <width> <height> <bits> <components> <samples>
+/chequereddata {
+	2 {
+		[
+			exch dup 16#FFFFFF and -16 bitshift exch dup 16#FFFF and -8 bitshift exch 16#FF and
+			3 copy eq exch 2 index eq and { pop pop } if
+		] exch
+	} repeat
+	2 copy length exch length eq not {
+		2 {
+			exch dup length 1 eq { aload pop dup dup 3 array astore } if
+		} repeat
+	} if
+	dup length 3 index dup add dup mul mul string
+	0
+	2 {
+		4 index {
+			4 index { 3 index { 3 copy put pop 1 add } forall } repeat
+			4 index { 2 index { 3 copy put pop 1 add } forall } repeat
+		} repeat
+		4 2 roll exch 4 2 roll
+	} repeat
+	pop
+	4 -1 roll dup add dup
+	8
+	6 -2 roll pop length
+	5 -1 roll
+} bind def
+
+% extract width, height, bits per sample, number of components, sample data from JPEG file
+% <filename> jpegdata <width> <height> <bits> <components> <samples>
+/jpegdata {
+	dup status pop pop pop exch pop exch % file size
+	(r) file exch string readstring pop % raw file data
+	dup
 	dup length
 	2
 	{
@@ -66,11 +101,14 @@ is_gs not {
 			2 index 1 index get % precision
 			4 1 roll % bits
 			1 add
-			2 index 1 index get 8 bitshift 3 index 2 index 1 add get or
-			4 1 roll % height
+			2 index 1 index get 8 bitshift 3 index 2 index 1 add get or % height
+			5 1 roll
 			2 add
-			2 index 1 index get 8 bitshift 3 index 2 index 1 add get or
-			4 1 roll % width
+			2 index 1 index get 8 bitshift 3 index 2 index 1 add get or % width
+			6 1 roll
+			2 add
+			2 index 1 index get % components
+			4 1 roll
 			exit
 		} if
 		1 add
@@ -78,7 +116,41 @@ is_gs not {
 		add
 	} loop
 	pop pop pop
-	exch 3 -1 roll
+	5 -1 roll
+	/DCTDecode filter 1 index 5 index 5 index mul mul string readstring pop % decoded string
+} bind def
+
+% make tiling pattern from image data
+% <width> <height> <bits> <samples> imagetile <pattern>
+/imagetile {
+	5 dict begin
+		/$samples exch def
+		/$cpts exch def
+		/$bits exch def
+		/$height exch def
+		/$width exch def
+		/$id << % image dictionary
+			/ImageType 1 % opaque
+			/Width $width
+			/Height $height
+			/ImageMatrix [$width 0 0 $height neg 0 $height]
+			/DataSource $samples % image
+			/BitsPerComponent $bits
+			/Decode $cpts 1 eq { [0 1] }{ [0 1 0 1 0 1] } ifelse % as recommended
+		>> def
+		$cpts 1 eq { /DeviceGray }{ /DeviceRGB } ifelse setcolorspace
+		<< % pattern dictionary
+			/PatternType 1 % tiling
+			/PaintType 1 % coloured
+			/TilingType 3 % faster
+			/BBox [0 0 1 1]
+			/XStep 1
+			/YStep 1
+			/id $id % additional
+			/PaintProc { begin id image end } bind
+		>>
+		$width $height neg idtransform matrix scale makepattern
+	end
 } bind def
 
 % set colour space and colour/pattern
@@ -87,31 +159,11 @@ is_gs not {
 	dup type /integertype eq { % plain colour
 		rgb is_gray { setgray }{ setrgbcolor } ifelse
 	}{ % tiled image
-		(r) file 10000 string readstring pop % raw jpeg string
-		dup jpegsize
-		4 -1 roll /DCTDecode filter 10000 string readstring pop % decoded string
-		/id << % image dictionary
-			/ImageType 1 % opaque
-			/Width 8 index
-			/Height 9 index
-			/ImageMatrix [ 13 index 0 0 15 index neg 0 17 index ]
-			/DataSource 11 index % decoded image
-			/BitsPerComponent 14 index
-			/Decode [0 1 0 1 0 1] % as recommended
-		>> def
-		pop pop
-		/DeviceRGB setcolorspace
-		/pd << % pattern dictionary
-			/PatternType 1 % tiling
-			/PaintType 1 % coloured
-			/TilingType 3 % faster
-			/BBox [ 0 0 13 index 13 index ]
-			/XStep 1
-			/YStep 1
-			/PaintProc { begin gsave id image grestore end }
-		>> def
-		matrix scale
-		pd exch
-		makepattern setpattern
+		dup type /stringtype eq { % filename
+			jpegdata
+		}{ % [size colour1 colour2] chequered
+			aload pop chequereddata
+		} ifelse
+		imagetile setpattern
 	} ifelse
 } bind def
