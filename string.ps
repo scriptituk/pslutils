@@ -1,6 +1,10 @@
 % PostScript String Procedures
 % by scriptit.co.uk
 
+% constants
+/WHITESPACE ( \n\r\t\b\f\000) def % whitespace chars (from PHP)
+/REALNUMBER (0123456789.Ee+-) def % real (and integer) signed number chars
+
 % get string value of integer
 /chr {
 	16#FF and 1 string exch 1 index exch 0 exch put
@@ -57,6 +61,37 @@
 	() concatas
 } bind def
 
+% strip whitespace from beginning and end of string
+% <string> trim <string>
+/trim {
+	//WHITESPACE exch
+	dup length 1 sub exch 0
+	0 1 4 index {
+		2 index exch 1 getinterval
+		4 index exch search { pop pop pop 1 add }{ pop exit } ifelse
+	} for
+	exch 3 -1 roll
+	dup -1 4 index {
+		2 index exch 1 getinterval
+		4 index exch search { pop pop pop 1 sub }{ pop exit } ifelse
+	} for
+	exch 3 1 roll
+	1 add 1 index sub getinterval
+	exch pop
+} bind def
+
+% split string by given substring
+% <string> <seek> split <array>
+/split {
+	[ 3 1 roll { search { 3 1 roll }{ exit } ifelse } loop ]
+} bind def
+
+% split CSV string into array
+% <string> csv <array>
+/csv {
+	(,) split
+} bind def
+
 % convert to lower case (ASCII only)
 % <string> tolower <string>
 /tolower {
@@ -79,69 +114,10 @@
 	} for
 } bind def
 
-% split string by given substring
-% <string> <seek> split <array>
-/split {
-	[ 3 1 roll { search { 3 1 roll }{ exit } ifelse } loop ]
-} bind def
-
 % read inline heredoc up to marker string e.g. (%EOD)
 % <EODString> heredoc <string>
 /heredoc {
 	currentfile exch 0 exch /SubFileDecode filter 65535 string readstring pop
-} bind def
-
-% encode dictionary or array as a JSON data-interchange string (simple implementation)
-% <dict|array> jsonencode <string>
-/jsonencode {
-	/jsonstr {
-		[ exch (") exch
-		dup type /stringtype eq {
-			{
-				chr {
-					dup (") eq { pop (\\") exit } if
-					dup (\\) eq { pop (\\\\) exit } if
-					dup (/) eq { pop (\\/) exit } if
-					dup (\b) eq { pop (\\b) exit } if
-					dup (\f) eq { pop (\\f) exit } if
-					dup (\n) eq { pop (\\n) exit } if
-					dup (\r) eq { pop (\\r) exit } if
-					dup (\t) eq { pop (\\t) exit } if
-					exit
-				} loop
-			} forall
-		} if
-		(") ] concata
-	} bind def
-	[ exch
-	dup type { % case stmt
-		dup /dicttype eq {
-			pop
-			({) exch {
-				2 index ({) ne { (,) 3 1 roll } if
-				exch jsonstr (:) cat exch jsonencode
-			} forall
-			(})
-			exit
-		} if
-		dup /arraytype eq {
-			pop
-			([) exch {
-				1 index ([) ne { (,) exch } if
-				jsonencode
-			} forall
-			(])
-			exit
-		} if
-		dup /stringtype eq { pop jsonstr exit } if
-		dup /nametype eq { pop jsonstr exit } if
-		dup /integertype eq { pop cvas exit } if
-		dup /realtype eq { pop cvas exit } if
-		dup /booleantype eq { pop cvas exit } if
-		dup /nulltype eq { pop pop (null) exit } if
-		pop
-	} loop
-	] concata
 } bind def
 
 % crunch postscript code string
@@ -354,6 +330,181 @@
 		2 add
 	} forall
 	pop
+} bind def
+
+% encode dictionary or array as a JSON data-interchange string
+% (simple implementation)
+% <any> jsonencode <string>
+/jsonencode {
+	/_jsonstr {
+		[ exch (") exch
+		dup type /stringtype eq {
+			{
+				chr {
+					dup (") eq { pop (\\") exit } if
+					dup (\\) eq { pop (\\\\) exit } if
+					dup (/) eq { pop (\\/) exit } if
+					dup (\b) eq { pop (\\b) exit } if
+					dup (\f) eq { pop (\\f) exit } if
+					dup (\n) eq { pop (\\n) exit } if
+					dup (\r) eq { pop (\\r) exit } if
+					dup (\t) eq { pop (\\t) exit } if
+					exit
+				} loop
+			} forall
+		} if
+		(") ] concata
+	} bind def
+	[ exch
+	dup type { % case stmt
+		dup /dicttype eq {
+			pop
+			({) exch {
+				2 index ({) ne { (,) 3 1 roll } if
+				exch _jsonstr (:) cat exch jsonencode
+			} forall
+			(})
+			exit
+		} if
+		dup /arraytype eq {
+			pop
+			([) exch {
+				1 index ([) ne { (,) exch } if
+				jsonencode
+			} forall
+			(])
+			exit
+		} if
+		dup /stringtype eq { pop _jsonstr exit } if
+		dup /nametype eq { pop _jsonstr exit } if
+		dup /integertype eq { pop cvas exit } if
+		dup /realtype eq { pop cvas exit } if
+		dup /booleantype eq { pop cvas exit } if
+		dup /nulltype eq { pop pop (null) exit } if
+		pop
+	} loop
+	] concata
+} bind def
+
+% decode JSON data-interchange string
+% (simple implementation, assumes valid JSON)
+% <string> jsondecode <dict|array>
+/jsondecode {
+	/_jsonskip { 1 index length 1 index sub getinterval } bind def
+	{
+		dup length 0 eq { pop exit } if % all parsed
+		dup 0 1 getinterval { % case stmt
+			//WHITESPACE 1 index search { % whitespace
+				pop pop pop
+				pop
+				1 exit
+			}{
+				pop
+			} ifelse
+			dup ([) eq { % array
+				pop
+				[ exch
+				1 exit
+			} if
+			dup (]) eq { % array end
+				pop
+				counttomark 1 add 1 roll ] exch
+				1 exit
+			} if
+			dup ({) eq { % object
+				pop
+				<< exch
+				1 exit
+			} if
+			dup (}) eq { % object end
+				pop
+				counttomark 1 add 1 roll >> exch
+				1 exit
+			} if
+			dup (:) eq { % name/value separator
+				pop
+				exch cvn exch
+				1 exit
+			} if
+			dup (,) eq { % separator
+				pop
+				1 exit
+			} if
+			dup (") eq { % string
+				pop
+				1 _jsonskip
+				0 {
+					2 copy 1 getinterval
+					dup (") eq { pop exit } if
+					dup (\\) eq {
+						pop
+						2 copy 0 exch getinterval
+						2 index 2 index 1 add 1 getinterval {
+							dup (b) eq { pop (\b) exit } if
+							dup (f) eq { pop (\f) exit } if
+							dup (n) eq { pop (\n) exit } if
+							dup (r) eq { pop (\r) exit } if
+							dup (t) eq { pop (\t) exit } if
+							dup (u) eq { % \uXXXX
+								pop
+								[
+									(16#) 4 index 4 index 2 add 4 getinterval cat
+									cvx exec
+								] int2str16 ucs2toutf8
+								3 -1 roll 4 add 3 1 roll
+								exit
+							} if
+							exit % keep other chars
+						} loop
+						cat
+						dup length
+						exch 4 2 roll
+						2 add _jsonskip % \ and next
+						cat exch
+					}{
+						pop
+						1 add % next char
+					} ifelse
+				} loop
+				2 copy 0 exch getinterval
+				3 1 roll
+				1 add exit
+			} if
+			dup (f) eq { % false
+				pop
+				false exch
+				5 exit
+			} if
+			dup (t) eq { % true
+				pop
+				true exch
+				4 exit
+			} if
+			dup (n) eq { % null
+				pop
+				null exch
+				4 exit
+			} if
+			{ % number
+				pop
+				0 {
+					2 copy exch length eq { exit } if
+					2 copy 1 getinterval
+					//REALNUMBER exch search {
+						pop pop pop
+					}{
+						pop exit
+					} ifelse
+					1 add
+				} loop
+				2 copy 0 exch getinterval
+				cvx exec
+				3 1 roll
+				exit
+			} exec
+		} loop
+		_jsonskip
+	} loop
 } bind def
 
 % translate string (char ints) to BMP PUA if symbol font
