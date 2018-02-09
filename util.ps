@@ -20,7 +20,7 @@ is_gs not {
 
 % points to mm
 /pt {
-	360 div 127 mul % x 25.4 / 72
+	127 mul 360 div % x 25.4 / 72
 } bind def
 
 % current x point
@@ -33,7 +33,7 @@ is_gs not {
 	currentpoint exch pop
 } bind def
 
-% 24-bit RGB to red green blue
+% 24-bit RGB to red green blue values 0.0 - 1.0
 % <int> rgb <red> <green> <blue>
 /rgb {
 	16#FFFFFF and
@@ -43,9 +43,9 @@ is_gs not {
 	3 -1 roll 16#FF and 255 div
 } bind def
 
-% test if RGB is gray
+% test if RGB is gray and leave value 0.0 - 1.0
 % <red> <green> <blue> is_gray <gray> true
-%							or <red> <green> <blue> false
+%						    or <red> <green> <blue> false
 /is_gray {
 	2 copy eq 3 index 3 index eq and
 	dup { 3 1 roll pop pop } if
@@ -57,8 +57,10 @@ is_gs not {
 /chequereddata {
 	2 {
 		[
-			exch dup 16#FFFFFF and -16 bitshift exch dup 16#FFFF and -8 bitshift exch 16#FF and
-			3 copy eq exch 2 index eq and { pop pop } if
+			exch dup 16#FFFFFF and
+			-16 bitshift exch dup 16#FFFF and
+			-8 bitshift exch 16#FF and
+			3 copy eq exch 2 index eq and { pop pop } if % grey
 		] exch
 	} repeat
 	2 copy length exch length eq not {
@@ -91,9 +93,9 @@ is_gs not {
 	dup length
 	2
 	{
-		2 copy lt { 0 0 0 6 3 roll exit } if % EOF
+		2 copy lt not { 0 0 0 0 7 4 roll exit } if % EOF
 		2 index 1 index get
-		16#FF ne { 0 0 0 6 3 roll exit } if % error
+		16#FF ne { 0 0 0 0 7 4 roll exit } if % error
 		1 add
 		2 index 1 index get
 		16#C0 eq { % SOF0 marker
@@ -117,7 +119,8 @@ is_gs not {
 	} loop
 	pop pop pop
 	5 -1 roll
-	/DCTDecode filter 1 index 5 index 5 index mul mul string readstring pop % decoded string
+	1 index 5 index 5 index mul mul dup 0 eq { pop 65535 } if string
+	exch /DCTDecode filter exch readstring pop % decoded string
 } bind def
 
 % make tiling pattern from image data
