@@ -252,7 +252,7 @@
 					exch 16#3F and 16#80 or
 				}{
 					dup -12 bitshift 16#E0 or
-					exch dup -6 bitshift 16#3F and  16#80 or
+					exch dup -6 bitshift 16#3F and 16#80 or
 					exch 16#3F and 16#80 or
 				} ifelse
 			} if
@@ -388,10 +388,11 @@
 
 % decode JSON data-interchange string
 % (simple implementation, assumes valid JSON)
-% <string> jsondecode <dict|array>
+% <string> jsondecode <any>
 /jsondecode {
 	/_jsonskip { 1 index length 1 index sub getinterval } bind def
-	{
+	mark exch
+	{ % case stmt
 		dup length 0 eq { pop exit } if % all parsed
 		dup 0 1 getinterval { % case stmt
 			//WHITESPACE 1 index search { % whitespace
@@ -505,6 +506,8 @@
 		} loop
 		_jsonskip
 	} loop
+	counttomark 0 eq { null } if % null if empty
+	exch pop
 } bind def
 
 % translate string (char ints) to BMP PUA if symbol font
