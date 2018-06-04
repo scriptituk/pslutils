@@ -15,6 +15,17 @@
 	0 get
 } bind def
 
+% get string hash (32 bit unsigned)
+% djb2 algorithm by Dan Bernstein (xor variant), see http://www.cse.yorku.ca/~oz/hash.html
+% <str> hash <hash>
+/hash {
+	5381 % hash
+	exch {
+		exch
+		dup 5 bitshift iadd32 xor % hash *= 33 ^ char
+	} forall
+} bind def
+
 % convert any to string
 /cvas {
 	dup type /stringtype ne { dup type /nametype eq { dup length }{ 20 } ifelse string cvs } if
@@ -333,13 +344,35 @@
 } bind def
 
 % encode dictionary or array as a JSON data-interchange string
-% (simple implementation)
+% (simple implementation, outputs UTF8 JSON)
 % <any> jsonencode <string>
 /jsonencode {
-	/_jsonstr {
-		[ exch (") exch
-		dup type /stringtype eq {
-			{
+	[ exch
+	dup type { % case stmt
+		dup /dicttype eq {
+			pop
+			({) exch {
+				2 index ({) ne { (,) 3 1 roll } if
+				exch (") exch (":) 4 -1 roll jsonencode
+			} forall
+			(})
+			exit
+		} if
+		dup dup /arraytype eq exch /packedarraytype eq or {
+			pop
+			([) exch {
+				1 index ([) ne { (,) exch } if
+				jsonencode
+			} forall
+			(])
+			exit
+		} if
+		dup /nametype eq { pop cvas /stringtype } if % fall through
+		dup /stringtype eq {
+			pop
+			dup length 2 bitshift string 0
+			2 copy (") putinterval 1 add
+			3 -1 roll {
 				chr {
 					dup (") eq { pop (\\") exit } if
 					dup (\\) eq { pop (\\\\) exit } if
@@ -349,45 +382,31 @@
 					dup (\n) eq { pop (\\n) exit } if
 					dup (\r) eq { pop (\\r) exit } if
 					dup (\t) eq { pop (\\t) exit } if
-					exit
+					dup ord dup 16#1F le exch 16#7F eq or { % control char
+						ord
+						(\\u00) 1 index 16 lt { (0) cat } if
+						exch 16 2 string cvrs cat
+						exit
+					} if
+					exit % assume UTF8/ASCII
 				} loop
+				3 copy putinterval length add
 			} forall
-		} if
-		(") ] concata
-	} bind def
-	[ exch
-	dup type { % case stmt
-		dup /dicttype eq {
-			pop
-			({) exch {
-				2 index ({) ne { (,) 3 1 roll } if
-				exch _jsonstr (:) cat exch jsonencode
-			} forall
-			(})
+			2 copy (") putinterval 1 add
+			0 exch getinterval
 			exit
 		} if
-		dup /arraytype eq {
-			pop
-			([) exch {
-				1 index ([) ne { (,) exch } if
-				jsonencode
-			} forall
-			(])
-			exit
-		} if
-		dup /stringtype eq { pop _jsonstr exit } if
-		dup /nametype eq { pop _jsonstr exit } if
-		dup /integertype eq { pop cvas exit } if
-		dup /realtype eq { pop cvas exit } if
-		dup /booleantype eq { pop cvas exit } if
+		dup /integertype eq { pop exit } if
+		dup /realtype eq { pop exit } if
+		dup /booleantype eq { pop exit } if
 		dup /nulltype eq { pop pop (null) exit } if
-		pop
+		pop pop exit % invalid
 	} loop
 	] concata
 } bind def
 
 % decode JSON data-interchange string
-% (simple implementation, assumes valid JSON)
+% (simple implementation, assumes valid UTF8 JSON)
 % <string> jsondecode <any>
 /jsondecode {
 	/_jsonskip { 1 index length 1 index sub getinterval } bind def
