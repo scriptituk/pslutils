@@ -43,13 +43,13 @@
 % radians to degrees
 % <radians> degrees <degrees>
 /degrees {
-	180 PI div mul
+	180 //PI div mul
 } bind def
 
 % degrees to radians
 % <degrees> radians <radians>
 /radians {
-	PI 180 div mul
+	//PI 180 div mul
 } bind def
 
 % root of difference of two squares
@@ -69,4 +69,3 @@
 /asin {
 	1 index rtdiffsq atan
 } bind def
-
