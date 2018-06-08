@@ -22,14 +22,10 @@
 
 % 32 bit integer addition
 /iadd32 {
-	2 copy or 16#C0000000 and 0 eq {
-		add
-	}{
-		2 copy 16#3FFFFFFF and exch 16#3FFFFFFF and add % 30 bit sum with carry
-		3 copy xor xor 16#C0000000 and exch 16#3FFFFFFF and or % 32 bit sum without carry over
-		3 copy and and 4 2 roll or 2 index not and or 16#40000000 and % carry bit
-		1 bitshift xor % carry over
-	} ifelse
+	2 copy xor 16#C0000000 and % to xor with carry bits
+	2 index 16#3FFFFFFF and 2 index 16#3FFFFFFF and add % 30 bit sum with carry
+	2 copy and 5 -2 roll and or 1 bitshift 16#80000000 and % top carry bit
+	or xor % sum
 } bind def
 
 % 32 bit integer subtraction
