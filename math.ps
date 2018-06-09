@@ -22,15 +22,29 @@
 
 % 32 bit integer addition
 /iadd32 {
-	2 copy xor 16#C0000000 and % to xor with carry bits
-	2 index 16#3FFFFFFF and 2 index 16#3FFFFFFF and add % 30 bit sum with carry
-	2 copy and 5 -2 roll and or 1 bitshift 16#80000000 and % top carry bit
-	or xor % sum
+	2 copy add
+	dup type /integertype eq {
+		exch pop exch pop
+		16#FFFFFFFF and
+	}{
+		pop
+		2 copy xor 16#C0000000 and % to xor with carry bits
+		2 index 16#3FFFFFFF and 2 index 16#3FFFFFFF and add % 30 bit sum with carry
+		2 copy and 5 -2 roll and or 1 bitshift 16#80000000 and % top carry bit
+		or xor % sum
+	} ifelse
 } bind def
 
 % 32 bit integer subtraction
 /isub32 {
-	not 1 iadd32 iadd32
+	dup neg
+	dup type /integertype eq {
+		exch pop
+	}{
+		pop
+		not 1 iadd32
+	} ifelse
+	iadd32
 } bind def
 
 % radians to degrees
