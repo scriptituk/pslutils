@@ -73,6 +73,7 @@
 } bind def
 
 % strip whitespace from beginning and end of string
+% returns substring
 % <string> trim <string>
 /trim {
 	//WHITESPACE exch
@@ -103,6 +104,12 @@
 	(,) split
 } bind def
 
+% replace occurrences of search string
+% <string> <seek> <replace> replace <string>
+/replace {
+	3 1 roll split exch concatas
+} bind def
+
 % convert to lower case (ASCII only)
 % <string> tolower <string>
 /tolower {
@@ -131,51 +138,111 @@
 	currentfile exch 0 exch /SubFileDecode filter 65535 string readstring pop
 } bind def
 
-% crunch postscript code string
-% <ps> crunchps <string>
+% crunch postscript code string and optionally fold at 80 characters maximum
+% <ps> <fold> crunchps <string>
 /crunchps {
+	exch
 	dup length string copy
 	0 % index
-	false % insert space
-	false % in comment
-	3 index {
-		{ % case stmt
-			dup 10 eq { pop pop pop true false exit } if % newline
-			1 index { pop exit } if % in comment
-			dup 37 eq { pop pop true exit } if % percent
-			dup 32 le { pop pop pop true false exit } if % whitespace
-			exch pop exch 2 index 0 ne and { % space?
-				2 index 2 index 1 sub get % last saved char
-				dup 123 ne exch dup 91 ne exch 60 ne and and % last != { or [ or <
-				1 index % this char
-				dup 125 ne exch dup 93 ne exch 62 ne and and % this != } or ] or >
-				and { 2 index 2 index 32 put exch 1 add exch } if % save space
-			} if
-			3 copy put pop % save
-			1 add false false
-			exit
-		} loop
-	} forall
-	pop pop
+	5 dict begin
+		/$depth 0 def % parenthesis depth
+		/$escape false def % escape
+		/$whitespace null def % last whitespace char
+		/$comment false def % in comment
+		/$lastchr null def % last saved char
+		1 index {
+			{ % case stmt
+				$depth 0 ne { % in string
+					dup 92 eq { % escape
+						/$escape $escape not def
+					}{
+						dup dup 40 eq exch 41 eq or $escape not and { % unescaped parenthesis
+							/$depth $depth 2 index 40 eq { 1 add }{ 1 sub } ifelse def
+						}{
+							dup 32 eq 4 index and { % space and folding
+								pop 31 % substitute space -> unit separator
+							} if
+						} ifelse
+						/$escape false def
+					} ifelse
+				}{
+					dup 10 eq { % newline
+						/$whitespace exch def
+						/$comment false def
+						exit
+					} if
+					$comment { % in comment
+						pop
+						exit
+					} if
+					dup 37 eq { % percent: start comment
+						pop
+						/$comment true def
+						exit
+					} if
+					dup 32 le { % whitespace
+						/$whitespace exch def
+						exit
+					} if
+					dup 40 eq { % open parenthesis: start string
+						/$depth 1 def
+						/$escape false def
+					} if
+					$whitespace null ne 2 index 0 ne and { % insert space?
+						dup 47 eq $whitespace 10 eq and { % newline/
+							pop
+							2 copy 10 put 1 add % save nl
+							47 % /
+						}{
+							$lastchr
+							dup 123 ne exch dup 91 ne exch 60 ne and and % last != { or [ or <
+							1 index % this char
+							dup 125 ne exch dup 93 ne exch 62 ne and and % this != } or ] or >
+							and { 2 index 2 index 32 put exch 1 add exch } if % save space
+						} ifelse
+					} if
+				} ifelse
+				3 copy put % save
+				/$lastchr exch def
+				1 add
+				/$whitespace null def
+				exit
+			} loop
+		} forall
+	end
 	0 exch getinterval
+	exch { % fold
+		80 fold
+		0 1 2 index length 1 sub {
+			2 copy get
+			31 eq { 2 copy 32 put } if % restore unit separator -> space
+			pop
+		} for
+	} if
 } bind def
 
-% fold lines to 80 characters max without word breaks
-% <string> fold80 <string>
-/fold80 {
-	0
-	{
-		80 add
-		2 copy exch length ge { exit } if
-		{
-			2 copy get 32 eq {
-				2 copy 10 put exit % space -> newline
-			}{
-				1 sub
-			} ifelse
-		} loop
-	} loop
-	pop
+% fold lines at character width without breaking words
+% <string> <width> fold <string>
+/fold {
+	exch dup length string copy exch % copy
+	-1 % last newline
+	0 % last space
+	0 1 5 index length 1 sub {
+		4 index 1 index get
+		dup 10 eq {
+			pop
+			exch 3 -1 roll pop
+		}{
+			32 eq { exch pop dup } if
+			2 index sub
+			3 index gt {
+				exch pop
+				2 index 1 index 10 put
+				dup
+			} if
+		} ifelse
+	} for
+	pop pop pop
 } bind def
 
 % convert int to octal escape string
@@ -199,6 +266,7 @@
 % assumes valid UTF-8
 % see http://tidy.sourceforge.net/cgi-bin/lxr/source/src/utf8.c
 % and https://en.wikipedia.org/wiki/UTF-8#Codepage_layout
+% and http://www.i18nguy.com/unicode-plane1-utf8.html
 % surrogate pairs result for code points > 16#FFFF (Supplementary Characters) - should map to .notdef
 % <utf8 string> utf8toutf16be <utf16 string>
 /utf8toutf16be {
@@ -224,8 +292,7 @@
 			}{ % continuation
 				1 sub
 				3 1 roll
-				16#3F and
-				exch 6 bitshift or
+				16#3F and exch 6 bitshift or
 				exch
 				dup 100 eq { % surrogates
 					pop
