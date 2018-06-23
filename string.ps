@@ -143,15 +143,25 @@
 /crunchps {
 	exch
 	dup length string copy
-	0 % index
-	5 dict begin
+	20 dict begin
 		/$depth 0 def % parenthesis depth
 		/$escape false def % escape
 		/$whitespace null def % last whitespace char
-		/$comment false def % in comment
-		/$lastchr null def % last saved char
-		1 index {
-			{ % case stmt
+		/$comment false def % in comment or primed for DSC
+		/$dsc false def % in DSC comment
+		/$str exch def % src/dest string
+		/$r $str /ReusableStreamDecode filter def % reader
+		/$w 0 def % write index
+		/$this null def % this read char
+		/$last null def % last read char
+		/$save null def % last saved char
+		/r_more { $r bytesavailable 0 gt } bind def % have more chars
+		/r_getc { /$last $this def $r read not { null } if dup /$this exch def } bind def % read
+		/r_peek { $r read { $r dup fileposition 1 sub setfileposition }{ null } ifelse } bind def % peek
+		/w_putc { /$save exch def $str $w $save put /$w $w 1 add def } bind def % write
+		{
+			r_more not { exit } if % end
+			r_getc { % case stmt
 				$depth 0 ne { % in string
 					dup 92 eq { % escape
 						/$escape $escape not def
@@ -159,7 +169,7 @@
 						dup dup 40 eq exch 41 eq or $escape not and { % unescaped parenthesis
 							/$depth $depth 2 index 40 eq { 1 add }{ 1 sub } ifelse def
 						}{
-							dup 32 eq 4 index and { % space and folding
+							dup 32 eq 2 index and { % space and folding
 								pop 31 % substitute space -> unit separator
 							} if
 						} ifelse
@@ -169,48 +179,61 @@
 					dup 10 eq { % newline
 						/$whitespace exch def
 						/$comment false def
+						$dsc { % in DSC comment
+							10 w_putc % save \n
+							/$dsc false def
+						} if
 						exit
 					} if
-					$comment { % in comment
-						pop
-						exit
-					} if
-					dup 37 eq { % percent: start comment
-						pop
-						/$comment true def
-						exit
-					} if
-					dup 32 le { % whitespace
-						/$whitespace exch def
-						exit
-					} if
-					dup 40 eq { % open parenthesis: start string
-						/$depth 1 def
-						/$escape false def
-					} if
-					$whitespace null ne 2 index 0 ne and { % insert space?
-						dup 47 eq $whitespace 10 eq and { % newline/
+					$dsc not { % not in DSC comment
+						$comment { % in comment
 							pop
-							2 copy 10 put 1 add % save nl
-							47 % /
-						}{
-							$lastchr
-							dup 123 ne exch dup 91 ne exch 60 ne and and % last != { or [ or <
-							1 index % this char
-							dup 125 ne exch dup 93 ne exch 62 ne and and % this != } or ] or >
-							and { 2 index 2 index 32 put exch 1 add exch } if % save space
-						} ifelse
+							exit
+						} if
+						dup 37 eq { % percent: start comment
+							pop
+							r_peek 
+							dup dup 33 eq exch 37 eq or { % %! or %%
+								$last 10 eq $last null eq or { % beginning of line: start DSC comment
+									$save 10 ne $save null ne and { 10 w_putc } if % save \n
+									37 w_putc % save %
+									r_getc w_putc % save ! or %
+									/$dsc true def
+								} if
+							} if
+							pop
+							/$comment true def
+							exit
+						} if
+						dup 32 le { % whitespace
+							/$whitespace exch def
+							exit
+						} if
+						dup 40 eq { % open parenthesis: start string
+							/$depth 1 def
+							/$escape false def
+						} if
+						dup 47 le { % slash
+							$last 10 eq $last null eq or { % beginning of line: new definition
+								$save 10 ne $save null ne and { 10 w_putc } if % save \n
+							} if
+						} if
+						$whitespace null ne $save null ne and { % insert space?
+							$save 123 ne $save 91 ne $save 60 ne and and % last != { or [ or <
+							$this 125 ne $this 93 ne $this 62 ne and and % this != } or ] or >
+							and {
+								$save 32 gt { 32 w_putc } if % save space
+							} if
+						} if
 					} if
 				} ifelse
-				3 copy put % save
-				/$lastchr exch def
-				1 add
+				w_putc % save
 				/$whitespace null def
 				exit
 			} loop
-		} forall
+		} loop
+		$str 0 $w getinterval
 	end
-	0 exch getinterval
 	exch { % fold
 		80 fold
 		0 1 2 index length 1 sub {
