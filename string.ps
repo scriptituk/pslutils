@@ -5,12 +5,14 @@
 /WHITESPACE ( \n\r\t\b\f\000) def % whitespace chars (from PHP)
 /REALNUMBER (0123456789.Ee+-) def % real (and integer) signed number chars
 
-% get string value of integer
+% get string representation of ASCII value
+% <int> chr <str>
 /chr {
-	16#FF and 1 string exch 1 index exch 0 exch put
+	16#FF and 1 string dup 0 4 -1 roll put
 } bind def
 
-% get integer value of character
+% get ASCII value of (first) string character
+% <str> ord <int>
 /ord {
 	0 get
 } bind def
@@ -192,7 +194,7 @@
 						} if
 						dup 37 eq { % percent: start comment
 							pop
-							r_peek 
+							r_peek
 							dup dup 33 eq exch 37 eq or { % %! or %%
 								$last 10 eq $last null eq or { % beginning of line: start DSC comment
 									$save 10 ne $save null ne and { 10 w_putc } if % save \n
@@ -272,17 +274,28 @@
 % <int> octal8 <string>
 /octal8 {
 	16#FF and
-	4 string (\\00) 1 index copy pop
+	(\\000) 4 string copy
 	dup 3 -1 roll
 	8 3 string cvrs
-	dup length neg 3 and
+	4 1 index length sub
 	exch putinterval
 } bind def
 
-% convert int to two octal escape string
+% convert int to two octal escape strings
 % <int> octal16 <string>
 /octal16 {
 	dup -8 bitshift octal8 exch octal8 cat
+} bind def
+
+% convert int to 16-bit hexadecimal radix string
+% <int> hex16 <string>
+/hex16 {
+	16#FFFF and
+	(0000) 4 string copy
+	dup 3 -1 roll
+	16 4 string cvrs
+	4 1 index length sub
+	exch putinterval
 } bind def
 
 % convert UTF-8 to UTF-16BE
