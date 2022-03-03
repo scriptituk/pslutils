@@ -4,6 +4,7 @@
 % constants
 /WHITESPACE ( \n\r\t\b\f\000) def % whitespace chars (from PHP)
 /REALNUMBER (0123456789.Ee+-) def % real (and integer) signed number chars
+/REPLACEMENT 16#FFFD def % Unicode Replacement Character code point in the Specials table
 
 % get string representation of ASCII value
 % <int> chr <str>
@@ -299,11 +300,54 @@
 } bind def
 
 % convert UTF-8 to UTF-16BE
-% naive implementation for Basic Multilingual Plane only (3 bytes max)
-% but surrogate pairs are produced for code points > 16#FFFF (Supplementary Characters - invalid UTF-8)
+% naive implementation (4 bytes max, cf. MySQL utf8mb4)
+% surrogate pairs produced for code points > 16#FFFF (Supplementary Characters)
 % see https://www.ghostscript.com/doc/base/gsargs.c
 % and https://en.wikipedia.org/wiki/UTF-8#Codepage_layout
 % and http://www.i18nguy.com/unicode-plane1-utf8.html
+% <utf8mb4 string> utf8mb4toutf16be <utf16 string>
+/utf8mb4toutf16be {
+	[ exch
+		0 % # continuation bytes
+		exch {
+			exch
+			dup 0 eq { % leading byte in sequence
+				pop
+				dup 16#C0 lt {
+					16#7F and 0 % no continuation
+				}{
+					dup 16#E0 lt {
+						16#1F and 1 % 1 continuation byte
+					}{
+						dup 16#F0 lt {
+							16#0F and 2 % 2 continuation bytes
+						}{
+							16#07 and 16#13 % 3 continuation bytes; surrogates marker
+						} ifelse
+					} ifelse
+				} ifelse
+			}{ % continuation
+				1 sub
+				3 1 roll
+				8#77 and exch 6 bitshift or
+				exch
+				dup 16#10 eq { % supplementary characters
+					pop
+					16#10000 sub
+					dup -10 bitshift 16#3FF and 16#D800 or % high surrogate
+					exch 16#3FF and 16#DC00 or % low surrogate
+					0
+				} if
+			} ifelse
+		} forall
+		pop
+	]
+	int2str16
+} bind def
+
+% convert UTF-8 to UTF-16BE for Basic Multilingual Plane only
+% naive implementation (3 bytes max, cf. MySQL utf8mb3)
+% code point FFFD replacement character produced for code points > 16#FFFF (Supplementary Characters)
 % <utf8 string> utf8toutf16be <utf16 string>
 /utf8toutf16be {
 	[ exch
@@ -330,12 +374,8 @@
 				3 1 roll
 				8#77 and exch 6 bitshift or
 				exch
-				dup 16#10 eq { % surrogates
-					pop
-					16#10000 sub
-					dup -10 bitshift 16#3FF and 16#D800 or % high surrogate
-					exch 16#3FF and 16#DC00 or % low surrogate
-					0
+				dup 16#10 eq { % supplementary characters
+					pop pop //REPLACEMENT 0
 				} if
 			} ifelse
 		} forall
@@ -344,8 +384,8 @@
 	int2str16
 } bind def
 
-% convert UCS-2 to UTF-8
-% naive implementation for Basic Multilingual Plane only (3 bytes max)
+% convert UCS-2 to UTF-8 for Basic Multilingual Plane
+% naive implementation
 % see https://www.ghostscript.com/doc/base/gsargs.c
 % <ucs2 string> ucs2toutf8 <utf8 string>
 /ucs2toutf8 {
