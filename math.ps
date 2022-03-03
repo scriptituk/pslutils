@@ -1,9 +1,10 @@
 % PostScript Math Procedures
-% by scriptit.co.uk
+% by Raymond Luckhurst, scriptit.uk
 
 % constants
 /PI 3.141592654 def
 /E 2.718281828 def % Euler's number
+/I32 1 32 bitshift 0 eq def % true if 32 bit integers
 
 % sign function
 /sign {
@@ -21,31 +22,35 @@
 } bind def
 
 % 32 bit integer addition
-/iadd32 {
-	2 copy add
-	dup type /integertype eq {
-		exch pop exch pop
-		16#FFFFFFFF and
-	}{
-		pop
-		2 copy xor 16#C0000000 and % to xor with carry bits
-		2 index 16#3FFFFFFF and 2 index 16#3FFFFFFF and add % 30 bit sum with carry
-		2 copy and 5 -2 roll and or 1 bitshift 16#80000000 and % top carry bit
-		or xor % sum
-	} ifelse
-} bind def
+//I32 { % 32-bit ints
+	/iadd32 {
+		2 copy add type /integertype eq {
+			add 16#FFFFFFFF and
+		}{
+			2 copy xor 16#C0000000 and % to xor with carry bits
+			2 index 16#3FFFFFFF and 2 index 16#3FFFFFFF and add % 30 bit sum with carry
+			2 copy and 5 -2 roll and or 1 bitshift 16#80000000 and % top carry bit
+			or % 30 bit sum with both carry bits
+			xor % fix top 2 bit sum
+		} ifelse
+	} bind def
+}{ % 64-bit ints
+	/iadd32 { add 16#FFFFFFFF and } bind def
+} ifelse
 
 % 32 bit integer subtraction
-/isub32 {
-	dup neg
-	dup type /integertype eq {
-		exch pop
-	}{
-		pop
-		not 1 iadd32
-	} ifelse
-	iadd32
-} bind def
+//I32 { % 32-bit ints
+	/isub32 {
+		dup neg type /integertype eq {
+			neg
+		}{
+			not 1 iadd32
+		} ifelse
+		iadd32
+	} bind def
+}{ % 64-bit ints
+	/isub32 { sub 16#FFFFFFFF and } bind def
+} ifelse
 
 % radians to degrees
 % <radians> degrees <degrees>
@@ -65,13 +70,13 @@
 	dup mul exch dup mul sub abs sqrt
 } bind def
 
-% missing arc-cosine proc
+% arc-cosine
 % <adjacent> <hypotenuse> acos <angle>
 /acos {
 	1 index rtdiffsq exch atan
 } bind def
 
-% missing arc-sine proc
+% arc-sine
 % <opposite> <hypotenuse> asin <angle>
 /asin {
 	1 index rtdiffsq atan
