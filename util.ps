@@ -1,5 +1,5 @@
-% PostScript Utility Procedures
-% by scriptit.co.uk
+% PostScript General Utility Procedures
+% by Raymond Luckhurst, scriptit.uk
 
 % test if running ghostscript interpreter
 % - is_gs <bool>
@@ -8,10 +8,12 @@
 } bind def
 
 % maximum / minimum value
-is_gs not {
+/max where {
+	pop % gs
+}{
 	/max { 2 copy lt { exch } if pop } bind def
 	/min { 2 copy gt { exch } if pop } bind def
-} if
+} ifelse
 
 % mm to points
 /mm {
@@ -45,7 +47,7 @@ is_gs not {
 
 % test if RGB is gray and leave value 0.0 - 1.0
 % <red> <green> <blue> is_gray <gray> true
-%						    or <red> <green> <blue> false
+%							or <red> <green> <blue> false
 /is_gray {
 	2 copy eq 3 index 3 index eq and
 	dup { 3 1 roll pop pop } if
